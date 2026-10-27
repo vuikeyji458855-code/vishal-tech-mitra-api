@@ -527,8 +527,8 @@ button{cursor:pointer}
     const typing = addTyping();
 
     try {
-      const payload = {message:userText};
-      if (image) payload.imageBase64 = image;
+      const payload = {prompt: userText};
+if (image) payload.imageBase64 = image;
 
       const response = await fetch(API_URL, {
         method:"POST",
