@@ -18,68 +18,42 @@ export default async function handler(req, res) {
   }
 
   try {
-    const messages = req.body?.messages;
+    const body = req.body || {};
+    const message = String(body.message || body.prompt || "").trim();
+    const imageBase64 = body.imageBase64 || "";
 
-    if (!Array.isArray(messages) || messages.length === 0) {
+    if (!message && !imageBase64) {
       return res.status(400).json({
-        error: "कृपया अपना सवाल लिखें।"
+        error: "कृपया अपना सवाल लिखें या फोटो चुनें।"
       });
     }
 
-    const contents = [];
+    const parts = [];
 
-    for (const message of messages.slice(-12)) {
-      const role =
-        message.role === "model" ? "model" : "user";
+    if (message) {
+      parts.push({ text: message });
+    }
 
-      const parts = [];
+    if (imageBase64) {
+      const match = imageBase64.match(
+        /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\r\n]+)$/
+      );
 
-      if (
-        typeof message.text === "string" &&
-        message.text.trim()
-      ) {
-        parts.push({
-          text: message.text.slice(0, 10000)
+      if (!match) {
+        return res.status(400).json({
+          error: "फोटो का फॉर्मेट सही नहीं है। JPG, PNG या WebP फोटो चुनें।"
         });
       }
 
-      if (
-        role === "user" &&
-        typeof message.image === "string"
-      ) {
-        const match = message.image.match(
-          /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/
-        );
-
-        if (match) {
-          if (match[2].length > 6000000) {
-            return res.status(413).json({
-              error: "फोटो छोटी करके दोबारा अपलोड करें।"
-            });
-          }
-
-          parts.push({
-            inline_data: {
-              mime_type: match[1],
-              data: match[2]
-            }
-          });
+      parts.push({
+        inline_data: {
+          mime_type: match[1],
+          data: match[2].replace(/\s/g, "")
         }
-      }
-
-      if (parts.length) {
-        contents.push({ role, parts });
-      }
-    }
-
-    if (!contents.length) {
-      return res.status(400).json({
-        error: "सवाल या फोटो नहीं मिली।"
       });
     }
 
-    const model =
-      process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -92,14 +66,13 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           system_instruction: {
             parts: [{
-              text:
-                "You are Vishal Tech Mitra, a helpful AI assistant. Reply in simple Hindi when the user writes Hindi, and in English when they write English. Explain clearly and honestly."
+              text: "You are Vishal Tech Mitra, a helpful AI assistant. Reply clearly in the same language as the user. Explain things simply and accurately."
             }]
           },
-          contents,
+          contents: [{ role: "user", parts }],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 1800
+            maxOutputTokens: 2048
           }
         })
       }
@@ -108,39 +81,31 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(
-        "Gemini error:",
-        response.status,
-        data?.error?.message
-      );
-
+      console.error("Gemini API error:", response.status, data);
       return res.status(502).json({
-        error:
-          data?.error?.message ||
-          "Gemini API में समस्या है। API key, model और quota जाँचें।"
+        error: data?.error?.message || "Gemini API से जवाब नहीं मिला।"
       });
     }
 
-    const reply = (data.candidates || [])
-      .flatMap(item => item.content?.parts || [])
-      .map(part => part.text || "")
-      .join("\n")
+    const reply = data?.candidates?.[0]?.content?.parts
+      ?.map(part => part.text || "")
+      .join("")
       .trim();
 
     if (!reply) {
       return res.status(502).json({
-        error: "AI से जवाब नहीं मिला।"
+        error: "AI से खाली जवाब मिला। कृपया दोबारा कोशिश करें।"
       });
     }
 
     return res.status(200).json({ reply });
 
   } catch (error) {
-    console.error("Server error:", error);
+    console.error("Chat API error:", error);
 
     return res.status(500).json({
-      error:
-        "सर्वर में समस्या है। इंटरनेट और API सेटिंग जाँचें।"
+      error: "सर्वर में समस्या हुई। कृपया दोबारा कोशिश करें।"
     });
   }
 }
+  
