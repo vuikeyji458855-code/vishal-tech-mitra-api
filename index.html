@@ -2,6 +2,10 @@
 <html lang="hi">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f5f7ff">
 <title>Vishal Tech Mitra</title>
@@ -17,6 +21,489 @@
     <button class="iconbtn" id="menuBtn" aria-label="मेन्यू">☰</button>
     <div class="logo" aria-hidden="true">✦</div>
     <div class="brand"><strong>Vishal Tech Mitra</strong><small>आपका AI साथी</small></div>
+    <button class="iconbtn" id="themeBtn" aria-label="थीम बदलें">☾</button>
+    <button class="iconbtn" id="newChatBtn" aria-label="नई चैट">＋</button>
+  </header>
+
+  <main class="main">
+    <section class="welcome" id="welcome">
+      <div class="hero-logo">✦</div>
+      <h1>नमस्ते! 👋<br>मैं हूँ Vishal Tech Mitra</h1>
+      <p>आपका AI साथी — पढ़ाई, टेक्नोलॉजी, लेखन और नए आइडिया के लिए हमेशा तैयार।</p>
+    </section>
+    <section class="suggestions" id="suggestions">
+      <button class="suggestion" data-prompt="कक्षा 10 के इस विषय को आसान हिंदी में समझाओ।"><span class="emoji">🎓</span><b>पढ़ाई में मदद</b><small>कठिन विषय आसान भाषा में</small></button>
+      <button class="suggestion" data-prompt="मुझे एक वेबसाइट बनाने के लिए आसान कोडिंग गाइड दो।"><span class="emoji">💻</span><b>कोडिंग सीखें</b><small>वेबसाइट और ऐप के आइडिया</small></button>
+      <button class="suggestion" data-prompt="इस विषय को उदाहरण के साथ सरल भाषा में समझाओ।"><span class="emoji">💡</span><b>आसान समझ</b><small>कठिन सवालों के सरल जवाब</small></button>
+      <button class="suggestion" data-prompt="मुझे एक नया उपयोगी ऐप बनाने के आइडिया दो।"><span class="emoji">✨</span><b>नए आइडिया</b><small>कुछ नया बनाने की शुरुआत</small></button>
+    </section>
+    <section class="chatlist" id="chatList" aria-live="polite"></section>
+  </main>
+
+  <div class="composer-wrap">
+    <div class="composer">
+      <div class="preview-row" id="previewRow">
+        <div class="preview-box"><img id="previewImage" alt="चुनी हुई फोटो का प्रीव्यू"><button class="remove-photo" id="removePhotoBtn" aria-label="फोटो हटाएँ">×</button></div>
+        <div class="preview-info"><b id="previewName">फोटो चुनी गई</b><small id="previewSize">भेजने से पहले सवाल लिखें</small></div>
+      </div>
+      <div class="inputrow">
+        <button class="toolbtn" id="attachBtn" aria-label="फोटो या फाइल चुनें" title="फोटो जोड़ें">＋</button>
+        <textarea id="messageInput" rows="1" placeholder="अपना सवाल लिखें…" aria-label="अपना सवाल लिखें"></textarea>
+        <button class="toolbtn" id="cameraBtn" aria-label="कैमरे से फोटो लें" title="कैमरा">📷</button>
+        <button class="sendbtn" id="sendBtn" aria-label="भेजें">➤</button>
+      </div>
+      <input class="hidden" id="galleryInput" type="file" accept="image/*">
+      <input class="hidden" id="cameraInput" type="file" accept="image/*" capture="environment">
+    </div>
+    <div class="composer-note">📎 फोटो जोड़ने के लिए ＋ दबाएँ · हिंदी / English</div>
+  </div>
+  <div class="disclaimer">डेमो संस्करण · असली AI अभी कनेक्ट नहीं है</div>
+</div>
+
+<div class="drawer-backdrop" id="drawerBackdrop">
+  <aside class="drawer" aria-label="चैट मेन्यू">
+    <div class="drawer-head"><span>☰ मेन्यू</span><button class="iconbtn" id="closeDrawerBtn" aria-label="बंद करें">×</button></div>
+    <button class="primary" id="drawerNewChat">＋ नई चैट</button>
+    <div class="history-label">हाल की चैट</div>
+    <div class="history-list" id="historyList"></div>
+    <div class="drawer-foot">Vishal Tech Mitra<br>आपकी चैट इसी ब्राउज़र में सेव होती है। साझा डिवाइस पर निजी जानकारी न रखें।</div>
+  </aside>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const STORAGE_KEY = 'vtm_chats_v1';
+  const THEME_KEY = 'vtm_theme_v1';
+  let chats = [];
+  let currentId = null;
+  let selectedFile = null;
+  let selectedDataUrl = null;
+  let toastTimer;
+
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function showToast(message){
+    $('toast').textContent = message; $('toast').classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(()=>$('toast').classList.remove('show'),2600);
+  }
+  function saveChats(){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(chats)); }
+    catch(e){ showToast('स्टोरेज भर गया है। बड़ी फोटो वाली पुरानी चैट हटाएँ।'); }
+    renderHistory();
+  }
+  function loadChats(){
+    try { const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); chats = Array.isArray(data) ? data : []; }
+    catch(e){ chats = []; }
+    chats = chats.filter(c => c && c.id && Array.isArray(c.messages));
+  }
+  function currentChat(){ return chats.find(c => c.id === currentId); }
+  function makeChat(){
+    const c = {id:uid(), title:'नई चैट', updated:Date.now(), messages:[]};
+    chats.unshift(c); currentId=c.id; saveChats(); renderChat(); closeDrawer(); $('messageInput').focus();
+  }
+  function setWelcome(){
+    const has = currentChat() && currentChat().messages.length;
+    $('welcome').classList.toggle('hidden', !!has);
+    $('suggestions').classList.toggle('hidden', !!has);
+  }
+  function renderChat(){
+    const list=$('chatList'); list.innerHTML='';
+    const c=currentChat();
+    if(c){
+      c.messages.forEach((m,index)=>{
+        const row=document.createElement('div'); row.className='message '+(m.role==='user'?'user':'assistant');
+        if(m.role!=='user'){
+          const av=document.createElement('div'); av.className='avatar'; av.textContent='✦'; row.appendChild(av);
+        }
+        const bubble=document.createElement('div'); bubble.className='bubble';
+        if(m.image){
+          const img=document.createElement('img'); img.className='attach-in-chat'; img.alt='अपलोड की गई फोटो'; img.src=m.image; bubble.appendChild(img);
+        }
+        const text=document.createElement('div'); text.textContent=m.text || (m.image?'फोटो संलग्न की गई':''); bubble.appendChild(text);
+        if(m.role!=='user'){
+          const actions=document.createElement('div'); actions.className='msg-actions';
+          const copy=document.createElement('button'); copy.className='tinybtn'; copy.textContent='📋 कॉपी'; copy.onclick=()=>copyText(m.text||'');
+          actions.appendChild(copy);
+          const speak=document.createElement('button'); speak.className='tinybtn'; speak.textContent='🔊 सुनें'; speak.onclick=()=>speakText(m.text||'');
+          actions.appendChild(speak); bubble.appendChild(actions);
+        }
+        row.appendChild(bubble); list.appendChild(row);
+      });
+    }
+    setWelcome();
+    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+  }
+  function renderHistory(){
+    const list=$('historyList'); list.innerHTML='';
+    if(!chats.length){const p=document.createElement('div');p.className='drawer-foot';p.textContent='अभी कोई पुरानी चैट नहीं है।';list.appendChild(p);return;}
+    chats.slice().sort((a,b)=>b.updated-a.updated).forEach(c=>{
+      const row=document.createElement('div');row.className='history-item';
+      const open=document.createElement('button');open.className='history-open';open.textContent=c.title||'नई चैट';open.onclick=()=>{currentId=c.id;renderChat();closeDrawer();};
+      const del=document.createElement('button');del.className='delete-chat';del.textContent='🗑';del.title='चैट हटाएँ';del.setAttribute('aria-label','चैट हटाएँ');del.onclick=()=>deleteChat(c.id);
+      row.append(open,del);list.appendChild(row);
+    });
+  }
+  function deleteChat(id){
+    if(!confirm('क्या यह चैट हटानी है?')) return;
+    chats=chats.filter(c=>c.id!==id);
+    if(currentId===id) currentId=null;
+    saveChats(); if(!currentId && chats.length) currentId=chats[0].id;
+    renderChat(); showToast('चैट हटा दी गई।');
+  }
+  function openDrawer(){ $('drawerBackdrop').classList.add('open'); }
+  function closeDrawer(){ $('drawerBackdrop').classList.remove('open'); }
+  function resetAttachment(){
+    selectedFile=null;selectedDataUrl=null;$('galleryInput').value='';$('cameraInput').value='';
+    $('previewRow').classList.remove('show');$('previewImage').removeAttribute('src');
+  }
+  function handleFile(file){
+    if(!file) return;
+    if(!file.type.startsWith('image/')){showToast('कृपया फोटो फ़ाइल चुनें।');return;}
+    if(file.size>12*1024*1024){showToast('फोटो 12 MB से छोटी चुनें।');return;}
+    const reader=new FileReader();
+    reader.onload=()=>{
+      selectedFile=file;selectedDataUrl=reader.result;
+      $('previewImage').src=selectedDataUrl;$('previewName').textContent=file.name||'कैमरे की फोटो';
+      $('previewSize').textContent=(file.size/1024/1024).toFixed(2)+' MB · भेजने के लिए सवाल लिखें';
+      $('previewRow').classList.add('show');$('messageInput').focus();
+    };
+    reader.onerror=()=>showToast('फोटो पढ़ नहीं सके। दूसरी फोटो चुनें।');
+    reader.readAsDataURL(file);
+  }
+  function addMessage(role,text,image){
+    const c=currentChat() || (makeChat(),currentChat());
+    c.messages.push({role,text,image:image||null,at:Date.now()});
+    if(c.messages.length===1){
+      const title=text.trim() || (image?'फोटो के बारे में सवाल':'नई चैट');
+      c.title=title.length>32?title.slice(0,32)+'…':title;
+    }
+    c.updated=Date.now();saveChats();renderChat();
+  }
+    async function sendMessage(){
+    const text=$('messageInput').value.trim();
+    if(!text && !selectedDataUrl){showToast('पहले सवाल लिखें या फोटो चुनें।');return;}
+    if(!currentChat()) {const c={id:uid(),title:'नई चैट',updated:Date.now(),messages:[]};chats.unshift(c);currentId=c.id;}
+    
+    const image=selectedDataUrl;
+    const filePayload = selectedFile;
+    
+    addMessage('user',text,image);
+    $('messageInput').value='';autoGrow();resetAttachment();
+
+    // AI सोचने का मैसेज दिखाएं
+    addMessage('assistant','सोच रहा हूँ…',null);
+
+    try {
+      let imageBase64 = null;
+      let mimeType = null;
+      if (image && filePayload) {
+        imageBase64 = image.split(',')[1];
+        mimeType = filePayload.type;
+      }
+
+      // Vercel वाले असली AI बैकएंड से कनेक्ट करना
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: text,
+          imageBase64: imageBase64,
+          mimeType: mimeType
+        })
+      });
+
+      const data = await res.json();
+      
+      // लोडिंग मैसेज हटाकर असली उत्तर जोड़ना
+      const c = currentChat();
+      if (c && c.messages.length) {
+        c.messages.pop();
+      }
+
+      if (data.reply) {
+        addMessage('assistant', data.reply, null);
+      } else {
+        addMessage('assistant', 'त्रुटि: ' + (data.error || 'उत्तर प्राप्त नहीं हो सका।'), null);
+      }
+    } catch(err) {
+      const c = currentChat();
+      if (c && c.messages.length) c.messages.pop();
+      addMessage('assistant', 'सर्वर से कनेक्ट नहीं हो सका: ' + err.message, null);
+    }
+  }
+  
+  async function copyText(text){
+    try{await navigator.clipboard.writeText(text);showToast('जवाब कॉपी हो गया।');}
+    catch(e){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');showToast('जवाब कॉपी हो गया।');}catch(err){showToast('कॉपी नहीं हो सका।');}ta.remove();}
+  }
+  function speakText(text){
+    if(!('speechSynthesis' in window)){showToast('इस ब्राउज़र में टेक्स्ट सुनने की सुविधा नहीं है।');return;}
+    speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=/[\u0900-\u097F]/.test(text)?'hi-IN':'en-IN';speechSynthesis.speak(u);
+  }
+  function autoGrow(){const t=$('messageInput');t.style.height='auto';t.style.height=Math.min(t.scrollHeight,140)+'px';}
+  $('menuBtn').onclick=openDrawer;$('closeDrawerBtn').onclick=closeDrawer;
+  $('drawerBackdrop').addEventListener('click',e=>{if(e.target===$('drawerBackdrop'))closeDrawer();});
+  $('newChatBtn').onclick=makeChat;$('drawerNewChat').onclick=makeChat;
+  $('attachBtn').onclick=()=>$('galleryInput').click();$('cameraBtn').onclick=()=>$('cameraInput').click();
+  $('galleryInput').addEventListener('change',e=>handleFile(e.target.files[0]));
+  $('cameraInput').addEventListener('change',e=>handleFile(e.target.files[0]));
+  $('removePhotoBtn').onclick=resetAttachment;$('sendBtn').onclick=sendMessage;
+  $('messageInput').addEventListener('input',autoGrow);
+  $('messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+  document.querySelectorAll('[data-prompt]').forEach(b=>b.addEventListener('click',()=>{$('messageInput').value=b.dataset.prompt;autoGrow();$('messageInput').focus();}));
+  $('themeBtn').onclick=()=>{
+    document.body.classList.toggle('dark');const dark=document.body.classList.contains('dark');
+    localStorage.setItem(THEME_KEY,dark?'dark':'light');$('themeBtn').textContent=dark?'☀':'☾';
+    document.querySelector('meta[name="theme-color"]').content=dark?'#0b1020':'#f5f7ff';
+  };
+  if(localStorage.getItem(THEME_KEY)==='dark'){document.body.classList.add('dark');$('themeBtn').textContent='☀';}
+  loadChats();
+  if(chats.length){currentId=chats.slice().sort((a,b)=>b.updated-a.updated)[0].id;}
+  renderHistory();renderChat();
+})();
+</script>
+</body>
+  </html>
+  
+,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f7ff">
+<title>Vishal Tech Mitra</title>
+<style>
+:root{--bg:#f5f7ff;--panel:#fff;--text:#17213b;--muted:#7b879f;--line:#e1e7f2;--accent:#2563eb;--accent2:#6338e8;--soft:#eef2ff;--user:#e9efff;--shadow:0 8px 28px #253b7010}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}body{min-height:100dvh}button,input,textarea{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.app{min-height:100dvh;display:flex;flex-direction:column;max-width:1000px;margin:auto;background:var(--bg)}.topbar{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:11px;padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top))}.iconbtn{width:43px;height:43px;flex:0 0 43px;border:1px solid var(--line);background:var(--panel);border-radius:15px;color:var(--text);display:grid;place-items:center;font-size:22px}.logo{width:47px;height:47px;flex:0 0 47px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#1479ff,#6639e8);color:white;font-size:27px;box-shadow:0 7px 18px #4338ca2b}.brand{min-width:0;flex:1}.brand strong{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brand small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.main{flex:1;padding:20px 15px 12px;display:flex;flex-direction:column;gap:18px}.welcome{text-align:center;padding:26px 4px 6px}.hero-logo{margin:0 auto 17px;width:86px;height:86px;border-radius:28px;display:grid;place-items:center;background:linear-gradient(135deg,#1479ff,#6639e8);color:white;font-size:49px;box-shadow:0 15px 35px #4f46e52b}.welcome h1{font-size:clamp(24px,6vw,34px);line-height:1.25;margin:0 0 12px;letter-spacing:-.7px}.welcome p{color:var(--muted);line-height:1.7;margin:0 auto;max-width:520px;font-size:14px}.suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.suggestion{background:var(--panel);border:1px solid var(--line);border-radius:21px;padding:17px 15px;text-align:left;min-height:126px;color:var(--text);box-shadow:var(--shadow)}.suggestion .emoji{font-size:25px;display:block;margin-bottom:9px}.suggestion b{display:block;font-size:15px;margin-bottom:7px}.suggestion small{display:block;color:var(--muted);line-height:1.45;font-size:12px}.chatlist{display:flex;flex-direction:column;gap:16px}.message{display:flex;gap:9px;align-items:flex-start;max-width:100%}.message.user{justify-content:flex-end}.avatar{width:31px;height:31px;flex:0 0 31px;border-radius:11px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#1479ff,#6639e8);font-size:17px}.bubble{max-width:min(83%,680px);background:var(--panel);border:1px solid var(--line);border-radius:5px 18px 18px 18px;padding:12px 13px;line-height:1.6;overflow-wrap:anywhere;box-shadow:var(--shadow);font-size:14px}.user .bubble{background:var(--user);border-color:#d7e2ff;border-radius:18px 5px 18px 18px}.bubble img.attach-in-chat{display:block;max-width:100%;max-height:260px;object-fit:contain;border-radius:12px;margin-bottom:8px}.msg-actions{display:flex;gap:7px;margin-top:8px}.tinybtn{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:9px;padding:5px 8px;font-size:12px}.composer-wrap{position:sticky;bottom:0;z-index:4;background:linear-gradient(transparent,var(--bg) 18%);padding:12px 12px max(12px,env(safe-area-inset-bottom))}.composer{border:1px solid var(--line);background:var(--panel);border-radius:24px;padding:10px;box-shadow:0 8px 28px #1e3a8a10}.preview-row{display:none;gap:10px;align-items:center;padding:4px 5px 10px}.preview-row.show{display:flex}.preview-box{position:relative;width:75px;height:75px;flex:0 0 75px}.preview-box img{width:100%;height:100%;object-fit:cover;border-radius:13px;border:1px solid var(--line)}.remove-photo{position:absolute;right:-6px;top:-6px;width:25px;height:25px;border:0;border-radius:50%;background:#dc2626;color:white;font-size:17px;line-height:1}.preview-info{min-width:0;flex:1}.preview-info b{display:block;font-size:13px}.preview-info small{color:var(--muted);font-size:11px;display:block;overflow-wrap:anywhere;margin-top:3px}.inputrow{display:flex;align-items:flex-end;gap:8px}.toolbtn{width:42px;height:42px;flex:0 0 42px;border:0;background:transparent;color:var(--muted);border-radius:14px;font-size:24px;display:grid;place-items:center}.toolbtn:active{background:var(--soft)}textarea{width:100%;min-width:0;resize:none;max-height:140px;min-height:42px;border:0;outline:0!important;background:transparent;color:var(--text);padding:10px 3px;line-height:1.4;font-size:15px}textarea::placeholder{color:#929bb0}.sendbtn{width:45px;height:45px;flex:0 0 45px;border:0;border-radius:16px;background:linear-gradient(135deg,#1479ff,#6639e8);color:white;font-size:22px;display:grid;place-items:center}.composer-note{text-align:center;color:var(--muted);font-size:10px;padding-top:8px}.disclaimer{font-size:11px;color:var(--muted);text-align:center;padding:0 12px 8px}.drawer-backdrop{display:none;position:fixed;inset:0;background:#10182770;z-index:10}.drawer-backdrop.open{display:block}.drawer{position:absolute;left:0;top:0;bottom:0;width:min(84vw,330px);background:var(--panel);padding:18px;display:flex;flex-direction:column;gap:13px;box-shadow:10px 0 30px #0002}.drawer-head{display:flex;align-items:center;justify-content:space-between;font-weight:750;font-size:17px}.primary{border:0;background:linear-gradient(135deg,#1479ff,#6639e8);color:#fff;border-radius:14px;padding:12px;font-weight:650}.history-label{font-size:12px;color:var(--muted);margin-top:7px}.history-list{overflow:auto;display:flex;flex-direction:column;gap:6px}.history-item{display:flex;align-items:center;gap:7px}.history-open{flex:1;min-width:0;text-align:left;border:1px solid transparent;background:transparent;border-radius:12px;padding:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-open:active,.history-open:hover{background:var(--soft)}.delete-chat{border:0;background:transparent;color:#dc2626;padding:9px;border-radius:10px}.drawer-foot{margin-top:auto;color:var(--muted);font-size:11px;line-height:1.5}.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);z-index:20;background:#17213b;color:white;border-radius:12px;padding:10px 15px;font-size:13px;display:none;max-width:90vw;text-align:center}.toast.show{display:block}.hidden{display:none!important}body.dark{--bg:#0b1020;--panel:#121a2d;--text:#edf2ff;--muted:#9ba8c2;--line:#28334b;--soft:#1b2640;--user:#1c2c50;--shadow:0 8px 28px #0002}body.dark .user .bubble{border-color:#2a416f}body.dark .topbar{background:#101729}body.dark .composer-wrap{background:linear-gradient(transparent,var(--bg) 18%)}@media(min-width:700px){.main{padding:28px 28px 15px}.welcome{padding-top:38px}.suggestion{min-height:140px;padding:20px}.composer-wrap{padding-left:24px;padding-right:24px}.topbar{padding-left:22px;padding-right:22px}}@media(max-width:360px){.suggestions{gap:8px}.suggestion{padding:13px 11px}.suggestion b{font-size:13px}.toolbtn{width:36px;flex-basis:36px}.sendbtn{width:41px;flex-basis:41px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <button class="iconbtn" id="menuBtn" aria-label="मेन्यू">☰</button>
+    <div class="logo" aria-hidden="true">✦</div>
+    <div class="brand"><strong>Vishal Tech Mitra</<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f7ff">
+<title>Vishal Tech Mitra</title>
+<style>
+:root{--bg:#f5f7ff;--panel:#fff;--text:#17213b;--muted:#7b879f;--line:#e1e7f2;--accent:#2563eb;--accent2:#6338e8;--soft:#eef2ff;--user:#e9efff;--shadow:0 8px 28px #253b7010}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}body{min-height:100dvh}button,input,textarea{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.app{min-height:100dvh;display:flex;flex-direction:column;max-width:1000px;margin:auto;background:var(--bg)}.topbar{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:11px;padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top))}.iconbtn{width:43px;height:43px;flex:0 0 43px;border:1px solid var(--line);background:var(--panel);border-radius:15px;color:var(--text);display:grid;place-items:center;font-size:22px}.logo{width:47px;height:47px;flex:0 0 47px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#1479ff,#6639e8);color:white;font-size:27px;box-shadow:0 7px 18px #4338ca2b}.brand{min-width:0;flex:1}.brand strong{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brand small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.main{flex:1;padding:20px 15px 12px;display:flex;flex-direction:column;gap:18px}.welcome{text-align:center;padding:26px 4px 6px}.hero-logo{margin:0 auto 17px;width:86px;height:86px;border-radius:28px;display:grid;place-items:center;background:linear-gradient(135deg,#1479ff,#6639e8);color:white;font-size:49px;box-shadow:0 15px 35px #4f46e52b}.welcome h1{font-size:clamp(24px,6vw,34px);line-height:1.25;margin:0 0 12px;letter-spacing:-.7px}.welcome p{color:var(--muted);line-height:1.7;margin:0 auto;max-width:520px;font-size:14px}.suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.suggestion{background:var(--panel);border:1px solid var(--line);border-radius:21px;padding:17px 15px;text-align:left;min-height:126px;color:var(--text);box-shadow:var(--shadow)}.suggestion .emoji{font-size:25px;display:block;margin-bottom:9px}.suggestion b{display:block;font-size:15px;margin-bottom:7px}.suggestion small{display:block;color:var(--muted);line-height:1.45;font-size:12px}.chatlist{display:flex;flex-direction:column;gap:16px}.message{display:flex;gap:9px;align-items:flex-start;max-width:100%}.message.user{justify-content:flex-end}.avatar{width:31px;height:31px;flex:0 0 31px;border-radius:11px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#1479ff,#6639e8);font-size:17px}.bubble{max-width:min(83%,680px);background:var(--panel);border:1px solid var(--line);border-radius:5px 18px 18px 18px;padding:12px 13px;line-height:1.6;overflow-wrap:anywhere;box-shadow:var(--shadow);font-size:14px}.user .bubble{background:var(--user);border-color:#d7e2ff;border-radius:18px 5px 18px 18px}.bubble img.attach-in-chat{display:block;max-width:100%;max-height:260px;object-fit:contain;border-radius:12px;margin-bottom:8px}.msg-actions{display:flex;gap:7px;margin-top:8px}.tinybtn{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:9px;padding:5px 8px;font-size:12px}.composer-wrap{position:sticky;bottom:0;z-index:4;background:linear-gradient(transparent,var(--bg) 18%);padding:12px 12px max(12px,env(safe-area-inset-bottom))}.composer{border:1px solid var(--line);background:var(--panel);border-radius:24px;padding:10px;box-shadow:0 8px 28px #1e3a8a10}.preview-row{display:none;gap:10px;align-items:center;padding:4px 5px 10px}.preview-row.show{display:flex}.preview-box{position:relative;width:75px;height:75px;flex:0 0 75px}.preview-box img{width:100%;height:100%;object-fit:cover;border-radius:13px;border:1px solid var(--line)}.remove-photo{position:absolute;right:-6px;top:-6px;width:25px;height:25px;border:0;border-radius:50%;background:#dc2626;color:white;font-size:17px;line-height:1}.preview-info{min-width:0;flex:1}.preview-info b{display:block;font-size:13px}.preview-info small{color:var(--muted);font-size:11px;display:block;overflow-wrap:anywhere;margin-top:3px}.inputrow{display:flex;align-items:flex-end;gap:8px}.toolbtn{width:42px;height:42px;flex:0 0 42px;border:0;background:transparent;color:var(--muted);border-radius:14px;font-size:24px;display:grid;place-items:center}.toolbtn:active{background:var(--soft)}textarea{width:100%;min-width:0;resize:none;max-height:140px;min-height:42px;border:0;outline:0!important;background:transparent;color:var(--text);padding:10px 3px;line-height:1.4;font-size:15px}textarea::placeholder{color:#929bb0}.sendbtn{width:45px;height:45px;flex:0 0 45px;border:0;border-radius:16px;background:linear-gradient(135deg,#1479ff,#6639e8);color:white;font-size:22px;display:grid;place-items:center}.composer-note{text-align:center;color:var(--muted);font-size:10px;padding-top:8px}.disclaimer{font-size:11px;color:var(--muted);text-align:center;padding:0 12px 8px}.drawer-backdrop{display:none;position:fixed;inset:0;background:#10182770;z-index:10}.drawer-backdrop.open{display:block}.drawer{position:absolute;left:0;top:0;bottom:0;width:min(84vw,330px);background:var(--panel);padding:18px;display:flex;flex-direction:column;gap:13px;box-shadow:10px 0 30px #0002}.drawer-head{display:flex;align-items:center;justify-content:space-between;font-weight:750;font-size:17px}.primary{border:0;background:linear-gradient(135deg,#1479ff,#6639e8);color:#fff;border-radius:14px;padding:12px;font-weight:650}.history-label{font-size:12px;color:var(--muted);margin-top:7px}.history-list{overflow:auto;display:flex;flex-direction:column;gap:6px}.history-item{display:flex;align-items:center;gap:7px}.history-open{flex:1;min-width:0;text-align:left;border:1px solid transparent;background:transparent;border-radius:12px;padding:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-open:active,.history-open:hover{background:var(--soft)}.delete-chat{border:0;background:transparent;color:#dc2626;padding:9px;border-radius:10px}.drawer-foot{margin-top:auto;color:var(--muted);font-size:11px;line-height:1.5}.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);z-index:20;background:#17213b;color:white;border-radius:12px;padding:10px 15px;font-size:13px;display:none;max-width:90vw;text-align:center}.toast.show{display:block}.hidden{display:none!important}body.dark{--bg:#0b1020;--panel:#121a2d;--text:#edf2ff;--muted:#9ba8c2;--line:#28334b;--soft:#1b2640;--user:#1c2c50;--shadow:0 8px 28px #0002}body.dark .user .bubble{border-color:#2a416f}body.dark .topbar{background:#101729}body.dark .composer-wrap{background:linear-gradient(transparent,var(--bg) 18%)}@media(min-width:700px){.main{padding:28px 28px 15px}.welcome{padding-top:38px}.suggestion{min-height:140px;padding:20px}.composer-wrap{padding-left:24px;padding-right:24px}.topbar{padding-left:22px;padding-right:22px}}@media(max-width:360px){.suggestions{gap:8px}.suggestion{padding:13px 11px}.suggestion b{font-size:13px}.toolbtn{width:36px;flex-basis:36px}.sendbtn{width:41px;flex-basis:41px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <button class="iconbtn" id="menuBtn" aria-label="मेन्यू">☰</button>
+    <div class="logo" aria-hidden="true">✦</div>
+    <div class="brand"><strong>Vishal Tech Mitra</strong><small>आपका AI साथी</small></div>
+    <button class="iconbtn" id="themeBtn" aria-label="थीम बदलें">☾</button>
+    <button class="iconbtn" id="newChatBtn" aria-label="नई चैट">＋</button>
+  </header>
+
+  <main class="main">
+    <section class="welcome" id="welcome">
+      <div class="hero-logo">✦</div>
+      <h1>नमस्ते! 👋<br>मैं हूँ Vishal Tech Mitra</h1>
+      <p>आपका AI साथी — पढ़ाई, टेक्नोलॉजी, लेखन और नए आइडिया के लिए हमेशा तैयार।</p>
+    </section>
+    <section class="suggestions" id="suggestions">
+      <button class="suggestion" data-prompt="कक्षा 10 के इस विषय को आसान हिंदी में समझाओ।"><span class="emoji">🎓</span><b>पढ़ाई में मदद</b><small>कठिन विषय आसान भाषा में</small></button>
+      <button class="suggestion" data-prompt="मुझे एक वेबसाइट बनाने के लिए आसान कोडिंग गाइड दो।"><span class="emoji">💻</span><b>कोडिंग सीखें</b><small>वेबसाइट और ऐप के आइडिया</small></button>
+      <button class="suggestion" data-prompt="इस विषय को उदाहरण के साथ सरल भाषा में समझाओ।"><span class="emoji">💡</span><b>आसान समझ</b><small>कठिन सवालों के सरल जवाब</small></button>
+      <button class="suggestion" data-prompt="मुझे एक नया उपयोगी ऐप बनाने के आइडिया दो।"><span class="emoji">✨</span><b>नए आइडिया</b><small>कुछ नया बनाने की शुरुआत</small></button>
+    </section>
+    <section class="chatlist" id="chatList" aria-live="polite"></section>
+  </main>
+
+  <div class="composer-wrap">
+    <div class="composer">
+      <div class="preview-row" id="previewRow">
+        <div class="preview-box"><img id="previewImage" alt="चुनी हुई फोटो का प्रीव्यू"><button class="remove-photo" id="removePhotoBtn" aria-label="फोटो हटाएँ">×</button></div>
+        <div class="preview-info"><b id="previewName">फोटो चुनी गई</b><small id="previewSize">भेजने से पहले सवाल लिखें</small></div>
+      </div>
+      <div class="inputrow">
+        <button class="toolbtn" id="attachBtn" aria-label="फोटो या फाइल चुनें" title="फोटो जोड़ें">＋</button>
+        <textarea id="messageInput" rows="1" placeholder="अपना सवाल लिखें…" aria-label="अपना सवाल लिखें"></textarea>
+        <button class="toolbtn" id="cameraBtn" aria-label="कैमरे से फोटो लें" title="कैमरा">📷</button>
+        <button class="sendbtn" id="sendBtn" aria-label="भेजें">➤</button>
+      </div>
+      <input class="hidden" id="galleryInput" type="file" accept="image/*">
+      <input class="hidden" id="cameraInput" type="file" accept="image/*" capture="environment">
+    </div>
+    <div class="composer-note">📎 फोटो जोड़ने के लिए ＋ दबाएँ · हिंदी / English</div>
+  </div>
+  <div class="disclaimer">डेमो संस्करण · असली AI अभी कनेक्ट नहीं है</div>
+</div>
+
+<div class="drawer-backdrop" id="drawerBackdrop">
+  <aside class="drawer" aria-label="चैट मेन्यू">
+    <div class="drawer-head"><span>☰ मेन्यू</span><button class="iconbtn" id="closeDrawerBtn" aria-label="बंद करें">×</button></div>
+    <button class="primary" id="drawerNewChat">＋ नई चैट</button>
+    <div class="history-label">हाल की चैट</div>
+    <div class="history-list" id="historyList"></div>
+    <div class="drawer-foot">Vishal Tech Mitra<br>आपकी चैट इसी ब्राउज़र में सेव होती है। साझा डिवाइस पर निजी जानकारी न रखें।</div>
+  </aside>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const STORAGE_KEY = 'vtm_chats_v1';
+  const THEME_KEY = 'vtm_theme_v1';
+  let chats = [];
+  let currentId = null;
+  let selectedFile = null;
+  let selectedDataUrl = null;
+  let toastTimer;
+
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function showToast(message){
+    $('toast').textContent = message; $('toast').classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(()=>$('toast').classList.remove('show'),2600);
+  }
+  function saveChats(){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(chats)); }
+    catch(e){ showToast('स्टोरेज भर गया है। बड़ी फोटो वाली पुरानी चैट हटाएँ।'); }
+    renderHistory();
+  }
+  function loadChats(){
+    try { const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); chats = Array.isArray(data) ? data : []; }
+    catch(e){ chats = []; }
+    chats = chats.filter(c => c && c.id && Array.isArray(c.messages));
+  }
+  function currentChat(){ return chats.find(c => c.id === currentId); }
+  function makeChat(){
+    const c = {id:uid(), title:'नई चैट', updated:Date.now(), messages:[]};
+    chats.unshift(c); currentId=c.id; saveChats(); renderChat(); closeDrawer(); $('messageInput').focus();
+  }
+  function setWelcome(){
+    const has = currentChat() && currentChat().messages.length;
+    $('welcome').classList.toggle('hidden', !!has);
+    $('suggestions').classList.toggle('hidden', !!has);
+  }
+  function renderChat(){
+    const list=$('chatList'); list.innerHTML='';
+    const c=currentChat();
+    if(c){
+      c.messages.forEach((m,index)=>{
+        const row=document.createElement('div'); row.className='message '+(m.role==='user'?'user':'assistant');
+        if(m.role!=='user'){
+          const av=document.createElement('div'); av.className='avatar'; av.textContent='✦'; row.appendChild(av);
+        }
+        const bubble=document.createElement('div'); bubble.className='bubble';
+        if(m.image){
+          const img=document.createElement('img'); img.className='attach-in-chat'; img.alt='अपलोड की गई फोटो'; img.src=m.image; bubble.appendChild(img);
+        }
+        const text=document.createElement('div'); text.textContent=m.text || (m.image?'फोटो संलग्न की गई':''); bubble.appendChild(text);
+        if(m.role!=='user'){
+          const actions=document.createElement('div'); actions.className='msg-actions';
+          const copy=document.createElement('button'); copy.className='tinybtn'; copy.textContent='📋 कॉपी'; copy.onclick=()=>copyText(m.text||'');
+          actions.appendChild(copy);
+          const speak=document.createElement('button'); speak.className='tinybtn'; speak.textContent='🔊 सुनें'; speak.onclick=()=>speakText(m.text||'');
+          actions.appendChild(speak); bubble.appendChild(actions);
+        }
+        row.appendChild(bubble); list.appendChild(row);
+      });
+    }
+    setWelcome();
+    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+  }
+  function renderHistory(){
+    const list=$('historyList'); list.innerHTML='';
+    if(!chats.length){const p=document.createElement('div');p.className='drawer-foot';p.textContent='अभी कोई पुरानी चैट नहीं है।';list.appendChild(p);return;}
+    chats.slice().sort((a,b)=>b.updated-a.updated).forEach(c=>{
+      const row=document.createElement('div');row.className='history-item';
+      const open=document.createElement('button');open.className='history-open';open.textContent=c.title||'नई चैट';open.onclick=()=>{currentId=c.id;renderChat();closeDrawer();};
+      const del=document.createElement('button');del.className='delete-chat';del.textContent='🗑';del.title='चैट हटाएँ';del.setAttribute('aria-label','चैट हटाएँ');del.onclick=()=>deleteChat(c.id);
+      row.append(open,del);list.appendChild(row);
+    });
+  }
+  function deleteChat(id){
+    if(!confirm('क्या यह चैट हटानी है?')) return;
+    chats=chats.filter(c=>c.id!==id);
+    if(currentId===id) currentId=null;
+    saveChats(); if(!currentId && chats.length) currentId=chats[0].id;
+    renderChat(); showToast('चैट हटा दी गई।');
+  }
+  function openDrawer(){ $('drawerBackdrop').classList.add('open'); }
+  function closeDrawer(){ $('drawerBackdrop').classList.remove('open'); }
+  function resetAttachment(){
+    selectedFile=null;selectedDataUrl=null;$('galleryInput').value='';$('cameraInput').value='';
+    $('previewRow').classList.remove('show');$('previewImage').removeAttribute('src');
+  }
+  function handleFile(file){
+    if(!file) return;
+    if(!file.type.startsWith('image/')){showToast('कृपया फोटो फ़ाइल चुनें।');return;}
+    if(file.size>12*1024*1024){showToast('फोटो 12 MB से छोटी चुनें।');return;}
+    const reader=new FileReader();
+    reader.onload=()=>{
+      selectedFile=file;selectedDataUrl=reader.result;
+      $('previewImage').src=selectedDataUrl;$('previewName').textContent=file.name||'कैमरे की फोटो';
+      $('previewSize').textContent=(file.size/1024/1024).toFixed(2)+' MB · भेजने के लिए सवाल लिखें';
+      $('previewRow').classList.add('show');$('messageInput').focus();
+    };
+    reader.onerror=()=>showToast('फोटो पढ़ नहीं सके। दूसरी फोटो चुनें।');
+    reader.readAsDataURL(file);
+  }
+  function addMessage(role,text,image){
+    const c=currentChat() || (makeChat(),currentChat());
+    c.messages.push({role,text,image:image||null,at:Date.now()});
+    if(c.messages.length===1){
+      const title=text.trim() || (image?'फोटो के बारे में सवाल':'नई चैट');
+      c.title=title.length>32?title.slice(0,32)+'…':title;
+    }
+    c.updated=Date.now();saveChats();renderChat();
+  }
+  function sendMessage(){
+    const text=$('messageInput').value.trim();
+    if(!text && !selectedDataUrl){showToast('पहले सवाल लिखें या फोटो चुनें।');return;}
+    if(!currentChat()) {const c={id:uid(),title:'नई चैट',updated:Date.now(),messages:[]};chats.unshift(c);currentId=c.id;}
+    const image=selectedDataUrl;
+    addMessage('user',text,image);
+    $('messageInput').value='';autoGrow();resetAttachment();
+    const reply = image
+      ? 'फोटो आपके संदेश के साथ इस डेमो में जुड़ गई है। अभी इस ऐप में AI फोटो समझने की सेवा कनेक्ट नहीं है, इसलिए मैं फोटो का वास्तविक विश्लेषण नहीं कर सकता। इसे चालू करने के लिए सुरक्षित सर्वर पर Vision AI API जोड़नी होगी।'
+      : 'आपका संदेश इस डेमो चैट में सेव हो गया है। अभी असली AI कनेक्ट नहीं है, इसलिए मैं वास्तविक AI जवाब नहीं बना सकता। AI जवाब चालू करने के लिए सुरक्षित सर्वर/API जोड़ें।';
+    setTimeout(()=>{if(currentChat()) addMessage('assistant',reply,null);},220);
+  }
+  async function copyText(text){
+    try{await navigator.clipboard.writeText(text);showToast('जवाब कॉपी हो गया।');}
+    catch(e){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');showToast('जवाब कॉपी हो गया।');}catch(err){showToast('कॉपी नहीं हो सका।');}ta.remove();}
+  }
+  function speakText(text){
+    if(!('speechSynthesis' in window)){showToast('इस ब्राउज़र में टेक्स्ट सुनने की सुविधा नहीं है।');return;}
+    speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=/[\u0900-\u097F]/.test(text)?'hi-IN':'en-IN';speechSynthesis.speak(u);
+  }
+  function autoGrow(){const t=$('messageInput');t.style.height='auto';t.style.height=Math.min(t.scrollHeight,140)+'px';}
+  $('menuBtn').onclick=openDrawer;$('closeDrawerBtn').onclick=closeDrawer;
+  $('drawerBackdrop').addEventListener('click',e=>{if(e.target===$('drawerBackdrop'))closeDrawer();});
+  $('newChatBtn').onclick=makeChat;$('drawerNewChat').onclick=makeChat;
+  $('attachBtn').onclick=()=>$('galleryInput').click();$('cameraBtn').onclick=()=>$('cameraInput').click();
+  $('galleryInput').addEventListener('change',e=>handleFile(e.target.files[0]));
+  $('cameraInput').addEventListener('change',e=>handleFile(e.target.files[0]));
+  $('removePhotoBtn').onclick=resetAttachment;$('sendBtn').onclick=sendMessage;
+  $('messageInput').addEventListener('input',autoGrow);
+  $('messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+  document.querySelectorAll('[data-prompt]').forEach(b=>b.addEventListener('click',()=>{$('messageInput').value=b.dataset.prompt;autoGrow();$('messageInput').focus();}));
+  $('themeBtn').onclick=()=>{
+    document.body.classList.toggle('dark');const dark=document.body.classList.contains('dark');
+    localStorage.setItem(THEME_KEY,dark?'dark':'light');$('themeBtn').textContent=dark?'☀':'☾';
+    document.querySelector('meta[name="theme-color"]').content=dark?'#0b1020':'#f5f7ff';
+  };
+  if(localStorage.getItem(THEME_KEY)==='dark'){document.body.classList.add('dark');$('themeBtn').textContent='☀';}
+  loadChats();
+  if(chats.length){currentId=chats.slice().sort((a,b)=>b.updated-a.updated)[0].id;}
+  renderHistory();renderChat();
+})();
+</script>
+</body>
+  </html>
+  
+><small>आपका AI साथी</small></div>
     <button class="iconbtn" id="themeBtn" aria-label="थीम बदलें">☾</button>
     <button class="iconbtn" id="newChatBtn" aria-label="नई चैट">＋</button>
   </header>
