@@ -458,18 +458,59 @@
     }
     c.updated=Date.now();saveChats();renderChat();
   }
-  function sendMessage(){
+    async function sendMessage(){
     const text=$('messageInput').value.trim();
     if(!text && !selectedDataUrl){showToast('पहले सवाल लिखें या फोटो चुनें।');return;}
     if(!currentChat()) {const c={id:uid(),title:'नई चैट',updated:Date.now(),messages:[]};chats.unshift(c);currentId=c.id;}
+    
     const image=selectedDataUrl;
+    const filePayload = selectedFile;
+    
     addMessage('user',text,image);
     $('messageInput').value='';autoGrow();resetAttachment();
-    const reply = image
-      ? 'फोटो आपके संदेश के साथ इस डेमो में जुड़ गई है। अभी इस ऐप में AI फोटो समझने की सेवा कनेक्ट नहीं है, इसलिए मैं फोटो का वास्तविक विश्लेषण नहीं कर सकता। इसे चालू करने के लिए सुरक्षित सर्वर पर Vision AI API जोड़नी होगी।'
-      : 'आपका संदेश इस डेमो चैट में सेव हो गया है। अभी असली AI कनेक्ट नहीं है, इसलिए मैं वास्तविक AI जवाब नहीं बना सकता। AI जवाब चालू करने के लिए सुरक्षित सर्वर/API जोड़ें।';
-    setTimeout(()=>{if(currentChat()) addMessage('assistant',reply,null);},220);
-  }
+
+    // AI सोचने का मैसेज दिखाएं
+    addMessage('assistant','सोच रहा हूँ…',null);
+
+    try {
+      let imageBase64 = null;
+      let mimeType = null;
+      if (image && filePayload) {
+        imageBase64 = image.split(',')[1];
+        mimeType = filePayload.type;
+      }
+
+      // Vercel वाले असली AI बैकएंड से कनेक्ट करना
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: text,
+          imageBase64: imageBase64,
+          mimeType: mimeType
+        })
+      });
+
+      const data = await res.json();
+      
+      // लोडिंग मैसेज हटाकर असली उत्तर जोड़ना
+      const c = currentChat();
+      if (c && c.messages.length) {
+        c.messages.pop();
+      }
+
+      if (data.reply) {
+        addMessage('assistant', data.reply, null);
+      } else {
+        addMessage('assistant', 'त्रुटि: ' + (data.error || 'उत्तर प्राप्त नहीं हो सका।'), null);
+      }
+    } catch(err) {
+      const c = currentChat();
+      if (c && c.messages.length) c.messages.pop();
+      addMessage('assistant', 'सर्वर से कनेक्ट नहीं हो सका: ' + err.message, null);
+    }
+    }
+  
   async function copyText(text){
     try{await navigator.clipboard.writeText(text);showToast('जवाब कॉपी हो गया।');}
     catch(e){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');showToast('जवाब कॉपी हो गया।');}catch(err){showToast('कॉपी नहीं हो सका।');}ta.remove();}
